@@ -1,11 +1,11 @@
 ---
 name: orchestrator
-description: Coordinate complex engineering work through one root manager, optional read-only discovery, bounded implementation, and evidence-based verification. Use for greenfield projects, repository onboarding, staged delivery, architecture, open-source research, testing, review, or an explicit $orchestrator invocation.
+description: Coordinate software-project and coding work through one root manager, optional read-only discovery, bounded implementation, and evidence-based verification. Invoke implicitly for repository inspection, planning, architecture, implementation, debugging, refactoring, testing, review, deployment preparation, staged delivery, and other programming or software-engineering requests; also use for an explicit $orchestrator invocation. Keep non-engineering conversation outside this workflow.
 ---
 
 # Orchestrator
 
-Use this Skill as a workflow protocol. It does not select a model, enable a tool, raise permissions, or guarantee parallel execution. The active runtime and project rules remain authoritative.
+Use this Skill as the default workflow protocol for software-engineering work. Invocation does not require delegation: keep simple tasks in the root thread. This Skill does not select a model, enable a tool, raise permissions, or guarantee parallel execution. The active runtime and project rules remain authoritative.
 
 ## Runtime truth
 

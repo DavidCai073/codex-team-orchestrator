@@ -13,8 +13,9 @@ Use the repository's project-level `AGENTS.md` as the acceptance authority. This
 
 ## Invocation
 
-- Use `$orchestrator` for complex, staged, greenfield, onboarding, architecture, research, testing, or review work.
-- Keep simple edits and direct questions in the root thread.
+- Apply the `orchestrator` routing protocol implicitly to every programming and software-project request; the user does not need to name the Skill.
+- Skill invocation does not require delegation. Keep simple edits and direct technical questions in the root thread, and expand into graph-based coordination only when complexity or independent work justifies it.
+- Keep non-engineering conversation outside this routing protocol. `$orchestrator` remains available when the user wants to request it explicitly.
 - Classify failures before retrying: `unavailable` may fall back once; `task_failure` returns to the root for replanning; `permission_boundary` must not be bypassed; `invalid_scope` stops immediately.
 - If a requested role or model is `unavailable`, fall back once to the closest available runtime role, state the substitution, and preserve evidence requirements.
 - If delegation is unavailable, execute the graph sequentially without claiming parallelism.

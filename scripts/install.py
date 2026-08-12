@@ -11,7 +11,7 @@ from pathlib import Path
 from kitlib import atomic_write, load_json, sha256_bytes, sha256_file, state_paths, write_json
 
 
-VERSION = "0.1.0"
+VERSION = "0.1.1"
 AGENTS_START = "<!-- codex-team-orchestrator:start -->"
 AGENTS_END = "<!-- codex-team-orchestrator:end -->"
 TABLE_RE = re.compile(r"^\s*\[([^\]]+)\]\s*(?:#.*)?$")

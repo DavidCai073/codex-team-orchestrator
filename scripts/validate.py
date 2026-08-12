@@ -58,7 +58,7 @@ def validate_structure() -> None:
 
     manifest = json.loads((ROOT / ".codex-plugin" / "plugin.json").read_text(encoding="utf-8"))
     check(manifest.get("name") == "codex-team-orchestrator", "Unexpected plugin name")
-    check(manifest.get("version") == "0.1.0", "Unexpected plugin version")
+    check(manifest.get("version") == "0.1.1", "Unexpected plugin version")
     check(manifest.get("skills") == "./skills/", "Plugin must expose ./skills/")
     check(manifest.get("license") == "MIT", "Plugin license must be MIT")
 
@@ -71,7 +71,14 @@ def validate_structure() -> None:
 
     yaml_text = (ROOT / "skills" / "orchestrator" / "agents" / "openai.yaml").read_text(encoding="utf-8")
     check("$orchestrator" in yaml_text, "openai.yaml default_prompt must mention $orchestrator")
-    check(re.search(r"allow_implicit_invocation:\s*false", yaml_text) is not None, "Implicit invocation must be disabled")
+    check(re.search(r"allow_implicit_invocation:\s*true", yaml_text) is not None, "Implicit invocation must be enabled")
+    description = re.search(r"^description:\s*(.+)$", header, re.MULTILINE)
+    check(description is not None and "Invoke implicitly" in description.group(1), "Skill description must declare implicit routing")
+    agents_preset = (ROOT / "presets" / "AGENTS.example.md").read_text(encoding="utf-8")
+    check(
+        "implicitly to every programming and software-project request" in agents_preset,
+        "AGENTS preset must enforce full engineering-scope implicit routing",
+    )
 
     config = tomllib.loads((ROOT / "presets" / "config.example.toml").read_text(encoding="utf-8"))
     luna = tomllib.loads((ROOT / "agents" / "luna_worker.toml").read_text(encoding="utf-8"))
