@@ -1,0 +1,6 @@
+interface:
+  display_name: "Orchestrator"
+  short_description: "Coordinate Codex work across scoped roles."
+  default_prompt: "Use $orchestrator to plan, delegate, and verify a bounded engineering task."
+policy:
+  allow_implicit_invocation: false

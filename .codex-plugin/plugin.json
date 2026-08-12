@@ -1,0 +1,29 @@
+{
+  "name": "codex-team-orchestrator",
+  "version": "0.1.0",
+  "description": "A dependency-free Codex Skill and configuration kit for coordinating scoped read-only research, bounded implementation, and evidence-based verification.",
+  "author": {
+    "name": "DavidCai073"
+  },
+  "homepage": "https://github.com/DavidCai073/codex-team-orchestrator",
+  "repository": "https://github.com/DavidCai073/codex-team-orchestrator",
+  "license": "MIT",
+  "keywords": [
+    "codex",
+    "orchestration",
+    "subagents",
+    "engineering"
+  ],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "Codex Team Orchestrator",
+    "shortDescription": "Coordinate scoped Codex roles and verify results.",
+    "longDescription": "Routes complex engineering work through one root manager, optional read-only Terra discovery, bounded Luna implementation, and explicit verification. Model availability, permissions, concurrency, and token cost remain runtime-dependent.",
+    "developerName": "DavidCai073",
+    "category": "Productivity",
+    "capabilities": [],
+    "defaultPrompt": [
+      "Use $orchestrator to plan, delegate only useful bounded work, and verify the result."
+    ]
+  }
+}
