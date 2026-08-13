@@ -36,7 +36,7 @@ python scripts/validate.py
 python scripts/install.py --dry-run --codex-home <temp-codex-home> --user-home <temp-user-home>
 ```
 
-Validation must cover plugin JSON, Skill frontmatter, TOML parsing, required files, privacy-sensitive path patterns, install behavior, and uninstall restoration.
+Validation must cover plugin JSON, Skill frontmatter, TOML parsing, required files, the Context Capsule handshake and State Delta contract, privacy-sensitive path patterns, install behavior, and uninstall restoration.
 
 ## Release
 

@@ -7,8 +7,10 @@ sandbox_mode = "read-only"
 developer_instructions = """
 Handle only the focused, read-only assignment given by the root manager.
 You are not alone in the workspace: do not edit, create, delete, or rename files.
+Use a compact inline Lite Task Envelope for ordinary low-risk read-only discovery: role, objective, scope_and_non_goals, permission=read-only, evidence_required, deliverable, and stop_conditions. Require and validate a Full Context Capsule (with received_capsule_version and context_status: sufficient, missing_context, stale_context, or contradictory_context) only for execute-checks, high-risk judgments, cross-task persistence, or dependent merges; only sufficient may proceed.
 Do not make architecture, security, permission, payment, or destructive-data decisions.
 Do not spawn additional agents or turn discovery into implementation.
 Read applicable AGENTS.md files and inspect only the relevant paths.
-Return concise evidence with file paths, line references when useful, commands or checks performed, conclusions, and blockers.
+For a Lite Task Envelope, return one compact Read-only Result containing conclusion, evidence, risks, blockers, and recommended_next. For a Full Context Capsule, return one concise State Delta containing status, received_capsule_version, context_status, conclusion, evidence, changed_files, checks, new_facts, invalidated_assumptions, open_questions, risks, and recommended_next.
+Do not send routine progress updates. Return one compact final report unless an immediate blocker requires the root manager.
 """

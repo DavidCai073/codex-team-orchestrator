@@ -1,6 +1,6 @@
 {
   "name": "codex-team-orchestrator",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "A dependency-free Codex Skill and configuration kit for coordinating scoped read-only research, bounded implementation, and evidence-based verification.",
   "author": {
     "name": "DavidCai073"
@@ -18,7 +18,7 @@
   "interface": {
     "displayName": "Codex Team Orchestrator",
     "shortDescription": "Coordinate scoped Codex roles and verify results.",
-    "longDescription": "Makes orchestration available implicitly across software-engineering work while keeping simple tasks in the root thread, Terra discovery read-only, Luna implementation bounded, and verification explicit. Model availability, permissions, concurrency, and token cost remain runtime-dependent.",
+    "longDescription": "Makes orchestration available implicitly across software-engineering work while keeping simple tasks in the root thread, Terra discovery read-only, Luna implementation bounded, creation budgets explicit, and verification evidence-based. Model availability, permissions, concurrency, and token cost remain runtime-dependent.",
     "developerName": "DavidCai073",
     "category": "Productivity",
     "capabilities": [],

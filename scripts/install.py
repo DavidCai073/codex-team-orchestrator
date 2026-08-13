@@ -8,10 +8,10 @@ import tomllib
 from datetime import datetime, timezone
 from pathlib import Path
 
-from kitlib import atomic_write, load_json, sha256_bytes, sha256_file, state_paths, write_json
+from kitlib import atomic_write, is_within, load_json, sha256_bytes, sha256_file, state_paths, write_json
 
 
-VERSION = "0.1.1"
+VERSION = "0.1.2"
 AGENTS_START = "<!-- codex-team-orchestrator:start -->"
 AGENTS_END = "<!-- codex-team-orchestrator:end -->"
 TABLE_RE = re.compile(r"^\s*\[([^\]]+)\]\s*(?:#.*)?$")
@@ -127,7 +127,7 @@ def merge_agents(existing: str, preset_path: Path) -> str:
 def source_operations(repo_root: Path, codex_home: Path, user_home: Path) -> list[dict[str, object]]:
     operations: list[dict[str, object]] = []
     skill_source = repo_root / "skills" / "orchestrator"
-    skill_target = user_home / ".agents" / "skills" / "orchestrator"
+    skill_target = codex_home / "skills" / "orchestrator"
     for source in sorted(path for path in skill_source.rglob("*") if path.is_file()):
         operations.append({"source": source, "target": skill_target / source.relative_to(skill_source), "kind": "skill"})
     for name in ("luna_worker.toml", "terra_scout.toml"):
@@ -158,6 +158,19 @@ def is_idempotent(manifest: dict[str, object], operations: list[dict[str, object
         if sha256_file(path) != expected[target] or record.get("installed_sha256") != expected[target]:
             return False
     return True
+
+
+def manifest_manages_root(manifest: dict[str, object], root: Path) -> bool:
+    records = manifest.get("files")
+    if not isinstance(records, list):
+        return False
+    for record in records:
+        if not isinstance(record, dict):
+            continue
+        value = record.get("path")
+        if isinstance(value, str) and value and is_within(Path(value), root):
+            return True
+    return False
 
 
 def main() -> int:
@@ -192,8 +205,19 @@ def main() -> int:
             ]
         )
 
-    if manifest_path.exists():
-        manifest = load_json(manifest_path)
+    manifest = load_json(manifest_path) if manifest_path.exists() else None
+    legacy_skill_root = user_home / ".agents" / "skills" / "orchestrator"
+    if legacy_skill_root.is_dir() and not (
+        manifest is not None and manifest_manages_root(manifest, legacy_skill_root)
+    ):
+        print(
+            "Unmanaged legacy Skill directory exists; uninstall or move it before installing "
+            f"the canonical Skill at {codex_home / 'skills' / 'orchestrator'}.",
+            file=sys.stderr,
+        )
+        return 2
+
+    if manifest is not None:
         if is_idempotent(manifest, operations, args.apply_preset):
             print(f"Already installed: {VERSION}")
             return 0

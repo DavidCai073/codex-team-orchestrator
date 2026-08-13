@@ -23,15 +23,19 @@ def resolve_homes(args: argparse.Namespace) -> tuple[Path, Path]:
 
 
 def remove_empty_managed_dirs(paths: list[Path], codex_home: Path, user_home: Path) -> None:
-    skill_root = (user_home / ".agents" / "skills" / "orchestrator").resolve()
+    skill_roots = (
+        (codex_home / "skills" / "orchestrator").resolve(),
+        (user_home / ".agents" / "skills" / "orchestrator").resolve(),
+    )
     for parent in sorted({path.parent.resolve() for path in paths}, key=lambda item: len(item.parts), reverse=True):
         current = parent
-        while is_within(current, skill_root):
+        root = next((candidate for candidate in skill_roots if is_within(current, candidate)), None)
+        while root is not None and is_within(current, root):
             try:
                 current.rmdir()
             except OSError:
                 break
-            if current == skill_root:
+            if current == root:
                 break
             current = current.parent
     try:

@@ -56,7 +56,10 @@ def is_within(path: Path, root: Path) -> bool:
 
 
 def validate_managed_path(path: Path, codex_home: Path, user_home: Path) -> None:
-    skill_root = user_home / ".agents" / "skills" / "orchestrator"
+    skill_roots = (
+        codex_home / "skills" / "orchestrator",
+        user_home / ".agents" / "skills" / "orchestrator",
+    )
     allowed_files = {
         codex_home / "config.toml",
         codex_home / "AGENTS.md",
@@ -66,7 +69,7 @@ def validate_managed_path(path: Path, codex_home: Path, user_home: Path) -> None
     resolved = path.resolve()
     if resolved in {item.resolve() for item in allowed_files}:
         return
-    if is_within(resolved, skill_root):
+    if any(is_within(resolved, root) for root in skill_roots):
         return
     raise ValueError(f"Manifest path is outside managed locations: {path}")
 

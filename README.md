@@ -28,7 +28,7 @@
 - 需要当前支持自定义 Agent 和 Skills 的 Codex 客户端。
 - 示例模型为 `gpt-5.6-sol`、`gpt-5.6-terra` 和 `gpt-5.6-luna`；具体模型与推理档位是否可用取决于你的账户和运行时。
 - 多智能体通常比单智能体消耗更多总 Token。它的主要价值是隔离上下文、缩短可并行工作的等待时间并增加独立验证，不是免费算力。
-- 默认最多三个子智能体，不含主线程；这只是硬上限，不是每次必须开满。
+- 默认最多三个同时活跃的子智能体，不含主线程；普通一轮最多新建两个、单个交付阶段累计最多新建六个，达到预算后先集成和收口。
 - Skill 默认允许在所有编程和软件项目场景中隐式触发；普通聊天不会主动进入工程编排。
 - 隐式触发只代表加载路由规则，不代表每次都启动子智能体。简单任务仍由主线程直接完成。
 
@@ -67,7 +67,7 @@ python scripts/install.py --apply-preset
 
 安装完成后完全重启 Codex。
 
-### 从 v0.1.0 升级
+### 从旧版本升级
 
 新版不会覆盖旧安装的备份链。先使用更新后的仓库卸载旧版，再重新安装：
 
@@ -106,11 +106,34 @@ $orchestrator 接手当前项目，先检查规则和代码，再推进到可运
 
 全局路由只能分工，无法代替项目自己的“完成定义”。
 
+## 效率与任务生命周期
+
+这套配置把“同时运行上限”和“累计新建预算”分开：三个是运行时刹车，不是启动目标。简单任务不委派，中等任务通常只开一个，复杂任务通常最多新建两个；同职责优先复用已有 Agent。单个阶段累计新建六个后必须先集成、验证和形成检查点，不能继续接力开人。
+
+聚焦任务默认使用新鲜上下文，由主线程在委派合同中重述目标、权限、文件归属和安全边界。这样可以减少把整段旧对话复制给每个 Agent，也能降低子智能体误读父级编排指令的概率。一个任务发生第二次上下文压缩后，应停止扩员，生成简短交接并换新任务继续。
+
+为了避免“新鲜上下文”变成“缺少上下文”，写入、高风险、跨任务持久化或有依赖的合并才携带有版本号的 Full Context Capsule：目标、验收标准、已确认决策及证据、明确不做的内容、接口与依赖、文件归属、安全边界、已知失败和待决问题。普通低风险只读使用紧凑的 Lite Task Envelope（角色、目标、范围与不做项、`permission=read-only`、证据要求、交付物和停止条件），不强制 JSON 或摘要校验。需要升级时，Terra 或 Luna 必须先确认收到的版本，并把上下文标记为 `sufficient`、`missing_context`、`stale_context` 或 `contradictory_context`；只有 `sufficient` 才能继续，其余状态在写入前停手。
+
+完整胶囊任务完成后，子智能体只返回 State Delta：结论、证据、修改文件、检查结果、新事实、失效假设和待决问题。主线程核验后才合并，并在实质状态变化后递增版本。它不会消除摘要误差，只能在流程被遵守时帮助暴露部分漏传、旧信息和身份不匹配。
+
+写入型、高风险或跨任务持久化的交接还可以使用随 Skill 安装的零依赖校验器：
+
+```powershell
+python skills/orchestrator/scripts/validate_context_contract.py --kind capsule --file capsule.json --expected-version 3
+python skills/orchestrator/scripts/validate_context_contract.py --kind delta --file delta.json --capsule-file capsule.json --expected-version 3
+```
+
+普通低风险只读调查只做 Lite 内联握手，不强制产生 JSON 文件，避免验证本身拖慢任务。
+
+校验器只检查协议结构、版本、身份和摘要绑定；它不是 Codex 原生的 pre-spawn/pre-merge gate，不能证明证据结果语义真实，也不能覆盖运行时的实时权限。
+
+这些规则不能让 `ultra` 获得与低推理档位相同的响应速度，但能避免重复调查、历史 Agent 累积和无效上下文复制。
+
 ## 手动安装
 
 如果不使用脚本：
 
-1. 将 `skills/orchestrator/` 复制到 `~/.agents/skills/orchestrator/`。
+1. 将 `skills/orchestrator/` 复制到 `$CODEX_HOME/skills/orchestrator/`（未设置 `CODEX_HOME` 时通常是 `~/.codex/skills/orchestrator/`）。旧版 `~/.agents/skills/orchestrator/` 仅由卸载器兼容恢复，不再作为新安装目标。
 2. 将 `agents/*.toml` 复制到 `~/.codex/agents/`，或放入项目的 `.codex/agents/`。
 3. 按需把 `presets/config.example.toml` 中的设置合并到 `~/.codex/config.toml`。
 4. 按需把 `presets/AGENTS.example.md` 合并到 `~/.codex/AGENTS.md`。
@@ -166,11 +189,11 @@ python scripts/uninstall.py
 python scripts/validate.py
 ```
 
-验证覆盖插件 JSON、Skill 元数据、TOML、隐私模式、占位符、禁止打包的 Python 编译缓存，以及临时目录中的 dry-run、安装、重复安装和卸载恢复闭环。
+验证覆盖插件 JSON、Skill 元数据、TOML、Context Capsule 握手、State Delta 回传、隐私模式、占位符、禁止打包的 Python 编译缓存，以及临时目录中的 dry-run、安装、重复安装和卸载恢复闭环。
 
 ## Plugin 说明
 
-仓库包含有效的 `.codex-plugin/plugin.json`，因此 `orchestrator` Skill 可以作为 skills-only Plugin 打包。当前推荐仓库安装器，是因为自定义 Agent TOML 和用户配置预设不应由 Plugin 静默覆盖。提交到公共 Plugin 目录属于后续发布流程，不包含在 GitHub `v0.1.1` 中。
+仓库包含有效的 `.codex-plugin/plugin.json`，因此 `orchestrator` Skill 可以作为 skills-only Plugin 打包。当前推荐仓库安装器，是因为自定义 Agent TOML 和用户配置预设不应由 Plugin 静默覆盖。提交到公共 Plugin 目录属于后续发布流程，不包含在 GitHub `v0.1.2` 中。
 
 ## 官方资料
 
