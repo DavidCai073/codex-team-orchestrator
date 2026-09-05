@@ -10,6 +10,9 @@ Build and publish a small, auditable Codex team-orchestration kit. It packages o
 - Support Windows, macOS, and Linux when the Python standard library is sufficient.
 - Treat `config.toml` and global `AGENTS.md` as user-owned files.
 - Keep model names and reasoning efforts visible and easy to customize.
+- Keep Lite / Full as the only delegated handoff formats. Direct root work needs neither.
+- The root may perform difficult implementation; delegation must have an independent deliverable.
+- Preserve existing model choices unless the user explicitly selects a model preset.
 
 ## Safety
 
@@ -18,6 +21,8 @@ Build and publish a small, auditable Codex team-orchestration kit. It packages o
 - Installation must support a dry run and record enough state for a safe uninstall.
 - Uninstall must not erase files that changed after installation.
 - Default permissions must remain `workspace-write` with `on-request` approvals.
+- Config merges must prove target values and preservation of every unmanaged semantic value before writing. Reject unsupported TOML layouts without partial installation.
+- Repository development does not authorize installation into the active user's configuration or a Git push.
 
 ## Structure
 
@@ -26,6 +31,26 @@ Build and publish a small, auditable Codex team-orchestration kit. It packages o
 - `agents/`: custom Codex agent TOML files.
 - `presets/`: sanitized configuration and instruction templates.
 - `scripts/`: installer, uninstaller, and deterministic validation.
+- `tests/`: deterministic regressions using disposable workspaces and homes.
+- `docs/`: protocol decisions and reproducible behavior-evaluation instructions.
+- Keep task capsules, command logs, and workspace inventories outside the monitored workspace; never package them.
+
+## Run, build, test, and acceptance
+
+- Run: `python -B scripts/install.py --dry-run` or `python -B scripts/doctor.py --help`.
+- Build: no compilation or third-party dependencies; Python 3.11 or newer is required.
+- Test: `python -B scripts/validate.py` (includes unit regressions and isolated installation cycles).
+- Acceptance: array tables and multiline strings survive config merging; unselected models stay unchanged; contracts reject malformed payloads without crashing; actual workspace changes and input freshness are checked; acceptance remains a separate root decision backed by mapped evidence.
+- Schema 2 handoffs replace schema 1 handoffs; regenerate in-flight capsules. Keep legacy installation manifests uninstallable.
+- Permission checks must reuse valid session authorization. Reversibility alone grants no authority.
+- Run required and targeted checks once per relevant code state; broaden only for a concrete failure, changed dependency, or project requirement.
+
+## Deploy and rollback
+
+- Prepare reviewable local changes and an archive; publishing and changing the active Codex installation require their own authorization.
+- Installer/uninstaller regressions must use explicitly isolated temporary homes and verify restoration.
+- Preserve the installation backup chain, stop on externally modified files, and restore all successfully written files on an installation failure.
+- State inventories and contract checks are retrospective evidence, not runtime sandboxes or proof of agent attribution.
 
 ## Validation
 

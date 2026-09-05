@@ -1,44 +1,38 @@
-# Multi-agent principles
+# Execution principles
 
-This reference explains why the Skill uses a graph and runtime-aware delegation. It is guidance, not a claim that every Codex runtime exposes the same models or tools.
+This legacy filename contains model-independent guidance. The root is a hands-on engineer and the integration owner, not a dispatcher that must outsource all implementation.
 
-## Graph and barriers
+## Independence and ownership
 
-Treat work as nodes with dependencies, permissions, owners, outputs, and evidence. Use barriers to preserve causality:
+A delegated node needs an independent deliverable, bounded ownership, dependencies and evidence. Parallel discovery or independent review can be useful even when only one implementation stream is safe. Complete upstream decisions before dependent implementation; integrate before final acceptance. Do not create roles solely to fill a roster.
 
-- discovery before architecture;
-- architecture and ownership before implementation;
-- implementation before integration;
-- integration before tests, review, and acceptance.
+Keep one writer per workspace including the root. A read-only scout may run while the root writes elsewhere, but its inputs must remain stable or its findings must be rechecked. Isolate simultaneous writers in worktrees. Snapshot checks cannot attribute a change to a particular process; stop automatic acceptance of unexplained changes without discarding them.
 
-The root manager owns shared state and synthesizes evidence; workers are specialized tools, not autonomous project managers.
+Use the selection rules in SKILL.md and the single Lite / Full definition in role-contracts.md. Simple root work needs neither. Never turn every focused lookup into Full by applying a broad statement from a reference file.
 
-## Useful parallelism
+## Node state and authority
 
-Parallelize independent inspection, primary-source research, requirements criticism, risk analysis, competing architecture proposals, or post-integration review. Do not duplicate routine implementation, edit the same files concurrently, or spawn agents just because slots exist. The active runtime cap is authoritative; the public preset uses a maximum of three spawned agents and can be lowered or raised only by an explicit project configuration that the runtime actually honors.
+capsule_version belongs to one stage_id/node_id contract. Global stage revision and another node's completion do not invalidate it. Compare the actual input and interface dependencies. If a constraint changes, increment affected node versions and send updates or interrupt through available tools before further affected actions. Revalidate late results. Sending an update does not revoke an already executed external operation.
 
-## Budgets, reuse, and context
+The current helper conservatively rejects unexplained workspace changes outside ownership. For independent writers use isolated worktrees. For already reviewed unrelated changes the root may reconcile manually with the original evidence, refresh only affected checks, and create a new root review; do not silently rebase a capsule or regenerate hashes to conceal an unexplained edit.
 
-A concurrency limit alone does not prevent a long task from opening dozens of agents sequentially. Use a creation budget as well as the runtime cap:
+After compaction, recover goal, authorizations, node versions, file baseline, pending work, accepted evidence and open issues. Resume recoverable work. Escalate only unresolved facts that block a concrete action. Prefer fresh child contexts; reuse a child only when its assumptions and domain remain applicable.
 
-- create no agents for simple work, at most one for medium work, and normally at most two new agents in a complex user turn;
-- create at most six agents in one delivery stage, then integrate and checkpoint instead of opening another wave;
-- inspect the existing roster before spawning and reuse an idle agent with the same responsibility;
-- start focused agents with fresh context by default and pass a versioned Context Capsule containing the objective, acceptance criteria, decisions and evidence, non-goals, interfaces, ownership, safety boundaries, failures, and open questions;
-- require the child to confirm the received version and declare `sufficient`, `missing_context`, `stale_context`, or `contradictory_context`; only `sufficient` may act, and every result returns a structured State Delta for root verification;
-- keep scouts and workers as leaf roles and ask for one compact final result rather than routine progress messages;
-- after a second context compaction, stop expanding the team and hand off to a fresh task.
+## Failures
 
-The third runtime slot remains a safety ceiling. It is useful when a relevant existing agent is reused alongside two new independent assignments, not as a target for every complex request.
+- unavailable: use one closest supported runtime role or sequential execution, preserving scope and evidence requirements. Report the substitution.
+- task_failure: retain evidence and return to the root for replanning; do not automatically retry a failed task or failing test.
+- permission_boundary: stop the affected action. A different role or tool is not permission.
+- invalid_scope: stop and report the mismatch before writing.
 
-## Safety and authority
+The root supplies discoverable missing inputs. User questions are reserved for material decisions or authority that cannot be resolved from available context.
 
-Keep an authority ledger with `allowed`, `must ask`, and `forbidden` actions. Production changes, credentials, external services, paid operations, destructive work, deployment, third-party copying, and scope changes require approval. Persistence does not create authority, and a different resource must never be substituted for a named one during destructive work.
+## What verification proves
 
-## Graceful degradation
+A digest identifies JSON or file content. It does not authenticate the author or prove a test's meaning. The local helper records argv, cwd, exit code, output hashes and file-state hashes; a party able to edit all records can forge them. Runtime sandboxing and root evidence review remain necessary.
 
-If native subagents are unavailable, run the same nodes sequentially and say so. If a role fails, retry once only for a transient failure with the same contract; otherwise replan or report the blocker. Never fill missing upstream evidence with guesses or claim unverified work passed.
+Inventories cover regular files and symlinks, excluding .git metadata and explicitly declared generated/vendor paths. They capture uncommitted content as well as Git HEAD/dirty paths. They do not monitor network activity, databases, environment secrets, empty directories, or every permission bit. Watched symlinks are refused; snapshots are not atomic and a reverted intervening edit may be invisible. Use stable workspaces, no overlapping writers, and platform checks appropriate to the task.
 
-## Completion
+Acceptance maps every criterion to evidence. A diagnostic task may expect a nonzero exit; freeze that expectation before execution. Historical failing checks may be retained, but only applicable final-state evidence may satisfy acceptance. Root manual judgments remain judgments; the helper cannot prove the semantics of a manual inspection.
 
-Completion requires an integrated artifact, acceptance criteria mapped to observable evidence, relevant checks run or marked unverified, must-fix findings resolved, and a root-owned report covering risks, omissions, and rollback.
+Code-state hashes and the helper's Python/platform signature do not fingerprint every dependency, executable, external service or environment variable. The root must also assess environment applicability before reuse. Once required checks pass and no concrete concern remains, finish.

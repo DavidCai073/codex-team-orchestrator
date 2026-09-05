@@ -2,29 +2,33 @@ from __future__ import annotations
 
 import argparse
 import re
-import shutil
 import sys
 import tomllib
 from datetime import datetime, timezone
 from pathlib import Path
 
 from kitlib import atomic_write, is_within, load_json, sha256_bytes, sha256_file, state_paths, write_json
+from config_merge import ConfigMergeError, merge_values
 
 
-VERSION = "0.1.2"
+VERSION = "0.2.0"
 AGENTS_START = "<!-- codex-team-orchestrator:start -->"
 AGENTS_END = "<!-- codex-team-orchestrator:end -->"
-TABLE_RE = re.compile(r"^\s*\[([^\]]+)\]\s*(?:#.*)?$")
 
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Install Codex Team Orchestrator safely.")
     parser.add_argument("--codex-home", type=Path, help="Codex home directory (default: CODEX_HOME or ~/.codex).")
     parser.add_argument("--user-home", type=Path, help="User home used for ~/.agents (default: current home).")
-    parser.add_argument("--apply-preset", action="store_true", help="Merge the sanitized config and AGENTS presets after backing up existing files.")
+    parser.add_argument("--apply-preset", action="store_true", help="Apply routing, safety and concurrency settings; preserve existing model choices.")
+    parser.add_argument("--model-preset", choices=("astra",), help="Explicitly apply Astra high and default Terra medium; requires --apply-preset.")
+    parser.add_argument("--skill-location", choices=("codex", "agents"), default="codex", help="Select the client-supported Skill discovery root; default: codex.")
     parser.add_argument("--dry-run", action="store_true", help="Show planned changes without writing files.")
     parser.add_argument("--force", action="store_true", help="Replace conflicting managed Skill or agent files after backing them up.")
-    return parser.parse_args()
+    args = parser.parse_args()
+    if args.model_preset and not args.apply_preset:
+        parser.error("--model-preset requires --apply-preset")
+    return args
 
 
 def resolve_homes(args: argparse.Namespace) -> tuple[Path, Path]:
@@ -34,83 +38,13 @@ def resolve_homes(args: argparse.Namespace) -> tuple[Path, Path]:
     return codex_home, user_home
 
 
-def toml_literal(value: object) -> str:
-    if isinstance(value, bool):
-        return "true" if value else "false"
-    if isinstance(value, int):
-        return str(value)
-    if isinstance(value, str):
-        escaped = value.replace("\\", "\\\\").replace('"', '\\"')
-        return f'"{escaped}"'
-    raise TypeError(f"Unsupported preset value: {value!r}")
-
-
-def assignment_index(lines: list[str], start: int, end: int, key: str) -> int | None:
-    pattern = re.compile(rf"^\s*{re.escape(key)}\s*=")
-    for index in range(start, end):
-        if pattern.match(lines[index]) and not lines[index].lstrip().startswith("#"):
-            return index
-    return None
-
-
-def first_table_index(lines: list[str], start: int = 0) -> int:
-    for index in range(start, len(lines)):
-        if TABLE_RE.match(lines[index]):
-            return index
-    return len(lines)
-
-
-def merge_config(existing: str, preset_path: Path) -> str:
-    preset = tomllib.loads(preset_path.read_text(encoding="utf-8"))
-    lines = existing.replace("\r\n", "\n").split("\n") if existing else []
-    if lines and lines[-1] == "":
-        lines.pop()
-
-    top_values = {key: value for key, value in preset.items() if key != "agents"}
-    top_end = first_table_index(lines)
-    missing_top: list[str] = []
-    for key, value in top_values.items():
-        index = assignment_index(lines, 0, top_end, key)
-        replacement = f"{key} = {toml_literal(value)}"
-        if index is None:
-            missing_top.append(replacement)
-        else:
-            lines[index] = replacement
-    if missing_top:
-        insertion = missing_top + ([""] if top_end < len(lines) else [])
-        lines[top_end:top_end] = insertion
-
-    agents_values = preset.get("agents", {})
-    if not isinstance(agents_values, dict):
-        raise ValueError("Preset [agents] must be a table")
-    agents_header = None
-    for index, line in enumerate(lines):
-        match = TABLE_RE.match(line)
-        if match and match.group(1).strip() == "agents":
-            agents_header = index
-            break
-    if agents_header is None:
-        if lines and lines[-1] != "":
-            lines.append("")
-        lines.append("[agents]")
-        for key, value in agents_values.items():
-            lines.append(f"{key} = {toml_literal(value)}")
-    else:
-        agents_end = first_table_index(lines, agents_header + 1)
-        missing_agents: list[str] = []
-        for key, value in agents_values.items():
-            index = assignment_index(lines, agents_header + 1, agents_end, key)
-            replacement = f"{key} = {toml_literal(value)}"
-            if index is None:
-                missing_agents.append(replacement)
-            else:
-                lines[index] = replacement
-        if missing_agents:
-            lines[agents_end:agents_end] = missing_agents
-
-    result = "\n".join(lines).rstrip() + "\n"
-    tomllib.loads(result)
-    return result
+def merge_config(existing: str, preset_path: Path, model_preset: str | None = None) -> str:
+    selected = tomllib.loads(preset_path.read_text(encoding="utf-8"))
+    if model_preset:
+        models = tomllib.loads((preset_path.parent / "models.astra.toml").read_text(encoding="utf-8"))
+        selected.update({key: value for key, value in models.items() if key != "agents"})
+        selected.setdefault("agents", {}).update(models.get("agents", {}))
+    return merge_values(existing, selected)
 
 
 def merge_agents(existing: str, preset_path: Path) -> str:
@@ -124,11 +58,12 @@ def merge_agents(existing: str, preset_path: Path) -> str:
     return f"{base}\n\n{block}\n" if base else f"{block}\n"
 
 
-def source_operations(repo_root: Path, codex_home: Path, user_home: Path) -> list[dict[str, object]]:
+def source_operations(repo_root: Path, codex_home: Path, user_home: Path, skill_location: str = "codex") -> list[dict[str, object]]:
     operations: list[dict[str, object]] = []
     skill_source = repo_root / "skills" / "orchestrator"
-    skill_target = codex_home / "skills" / "orchestrator"
-    for source in sorted(path for path in skill_source.rglob("*") if path.is_file()):
+    skill_target = (codex_home / "skills" if skill_location == "codex" else user_home / ".agents" / "skills") / "orchestrator"
+    for source in sorted(path for path in skill_source.rglob("*") if path.is_file()
+                         and "__pycache__" not in path.parts and path.suffix != ".pyc"):
         operations.append({"source": source, "target": skill_target / source.relative_to(skill_source), "kind": "skill"})
     for name in ("luna_worker.toml", "terra_scout.toml"):
         operations.append({"source": repo_root / "agents" / name, "target": codex_home / "agents" / name, "kind": "agent"})
@@ -179,7 +114,7 @@ def main() -> int:
     repo_root = Path(__file__).resolve().parent.parent
     state_dir, manifest_path = state_paths(codex_home)
 
-    operations = source_operations(repo_root, codex_home, user_home)
+    operations = source_operations(repo_root, codex_home, user_home, args.skill_location)
     for operation in operations:
         source = Path(operation["source"])
         if not source.is_file():
@@ -194,7 +129,7 @@ def main() -> int:
             [
                 {
                     "target": config_path,
-                    "data": merge_config(existing_config, repo_root / "presets" / "config.example.toml").encode("utf-8"),
+                    "data": merge_config(existing_config, repo_root / "presets" / "config.example.toml", args.model_preset).encode("utf-8"),
                     "kind": "preset-config",
                 },
                 {
@@ -206,19 +141,21 @@ def main() -> int:
         )
 
     manifest = load_json(manifest_path) if manifest_path.exists() else None
-    legacy_skill_root = user_home / ".agents" / "skills" / "orchestrator"
+    legacy_skill_root = (user_home / ".agents" / "skills" if args.skill_location == "codex" else codex_home / "skills") / "orchestrator"
     if legacy_skill_root.is_dir() and not (
         manifest is not None and manifest_manages_root(manifest, legacy_skill_root)
     ):
         print(
-            "Unmanaged legacy Skill directory exists; uninstall or move it before installing "
-            f"the canonical Skill at {codex_home / 'skills' / 'orchestrator'}.",
+            "Unmanaged duplicate Skill directory exists; review it before installing: "
+            f"{legacy_skill_root}.",
             file=sys.stderr,
         )
         return 2
 
     if manifest is not None:
-        if is_idempotent(manifest, operations, args.apply_preset):
+        if (manifest.get("model_preset") == args.model_preset
+                and manifest.get("skill_location", "codex") == args.skill_location
+                and is_idempotent(manifest, operations, args.apply_preset)):
             print(f"Already installed: {VERSION}")
             return 0
         print(
@@ -244,6 +181,9 @@ def main() -> int:
 
     print(f"Codex home: {codex_home}")
     print(f"User home:  {user_home}")
+    if args.apply_preset:
+        print("Preset: routing, workspace-write/on-request safety, concurrency")
+        print("Models: Astra high / default Terra medium" if args.model_preset else "Models: existing choices preserved")
     for operation in operations:
         target = Path(operation["target"])
         action = "update" if target.exists() else "create"
@@ -285,6 +225,8 @@ def main() -> int:
             "codex_home": str(codex_home),
             "user_home": str(user_home),
             "preset_applied": args.apply_preset,
+            "model_preset": args.model_preset,
+            "skill_location": args.skill_location,
             "files": records,
         }
         write_json(manifest_path, manifest)
@@ -304,4 +246,8 @@ def main() -> int:
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    try:
+        raise SystemExit(main())
+    except (ConfigMergeError, OSError, ValueError) as error:
+        print(f"Install stopped before completion: {error}", file=sys.stderr)
+        raise SystemExit(2)

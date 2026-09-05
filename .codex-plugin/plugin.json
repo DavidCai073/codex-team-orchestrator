@@ -1,6 +1,6 @@
 {
   "name": "codex-team-orchestrator",
-  "version": "0.1.2",
+  "version": "0.2.0",
   "description": "A dependency-free Codex Skill and configuration kit for coordinating scoped read-only research, bounded implementation, and evidence-based verification.",
   "author": {
     "name": "DavidCai073"
