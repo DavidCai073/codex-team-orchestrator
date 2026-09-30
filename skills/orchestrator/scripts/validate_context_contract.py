@@ -110,6 +110,10 @@ def validate_capsule(payload: Any, expected_version: int | None = None) -> list[
                 errors.append(f"acceptance_criteria[{index}].verification must be command or manual")
             if item.get("verification") == "command" and type(item.get("expected_exit_code")) is not int:
                 errors.append(f"acceptance_criteria[{index}] requires integer expected_exit_code")
+            if "command" in item and (not string_list(item["command"]) or not item["command"]):
+                errors.append(f"acceptance_criteria[{index}].command must be non-empty argv")
+            if item.get("cwd", ".") != "." and not relative_path(item.get("cwd")):
+                errors.append(f"acceptance_criteria[{index}].cwd must be relative or '.'")
         if len(set(ids)) != len(ids):
             errors.append("acceptance criterion IDs must be unique")
     decisions = payload.get("confirmed_decisions")
@@ -292,8 +296,13 @@ def validate_acceptance(review: Any, capsule: dict, delta: dict) -> list[str]:
                 errors.append("met criterion requires verified evidence")
             if criterion["verification"] == "command":
                 linked = [checks.get(evidence[key]["ref"]) for key in ids if evidence[key]["kind"] == "command"]
-                if not any(check and check["status"] != "not_run" and check["exit_code"] == criterion["expected_exit_code"] for check in linked):
-                    errors.append("required check has no matching expected exit code")
+                if not criterion.get("command"):
+                    errors.append("command criterion must pin command argv before acceptance; update the node contract")
+                elif not any(check and check["status"] != "not_run"
+                             and check["exit_code"] == criterion["expected_exit_code"]
+                             and check["command"] == criterion["command"]
+                             and check["cwd"] == criterion.get("cwd", ".") for check in linked):
+                    errors.append("required check has no matching planned command, cwd and expected exit code")
         if accepted and row.get("decision") != "met":
             errors.append("accepted requires every criterion to be met")
     if sorted(seen) != sorted(criteria):

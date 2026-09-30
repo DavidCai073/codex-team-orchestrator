@@ -3,4 +3,5 @@ __pycache__/
 .DS_Store
 Thumbs.db
 .codex-team-orchestrator/
+.orchestrator/
 *.bak

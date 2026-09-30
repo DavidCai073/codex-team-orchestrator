@@ -13,6 +13,8 @@ Build and publish a small, auditable Codex team-orchestration kit. It packages o
 - Keep Lite / Full as the only delegated handoff formats. Direct root work needs neither.
 - The root may perform difficult implementation; delegation must have an independent deliverable.
 - Preserve existing model choices unless the user explicitly selects a model preset.
+- Keep role responsibilities model-neutral. Preserve installed role model/effort overrides on ordinary replacement; an explicit model preset may remove those overrides so its defaults can apply.
+- Base current capability claims on dated official documentation and observed runtime tools. Keep API features separate from capabilities exposed by the current Codex client.
 
 ## Safety
 
@@ -33,7 +35,7 @@ Build and publish a small, auditable Codex team-orchestration kit. It packages o
 - `scripts/`: installer, uninstaller, and deterministic validation.
 - `tests/`: deterministic regressions using disposable workspaces and homes.
 - `docs/`: protocol decisions and reproducible behavior-evaluation instructions.
-- Keep task capsules, command logs, and workspace inventories outside the monitored workspace; never package them.
+- Keep task capsules, command logs, and workspace inventories outside the monitored workspace, or in its explicitly excluded `.orchestrator/` artifact directory within allowed write roots; never package them.
 
 ## Run, build, test, and acceptance
 
@@ -44,6 +46,8 @@ Build and publish a small, auditable Codex team-orchestration kit. It packages o
 - Schema 2 handoffs replace schema 1 handoffs; regenerate in-flight capsules. Keep legacy installation manifests uninstallable.
 - Permission checks must reuse valid session authorization. Reversibility alone grants no authority.
 - Run required and targeted checks once per relevant code state; broaden only for a concrete failure, changed dependency, or project requirement.
+- New command acceptance criteria must pin argv, cwd and expected exit code. Passing an unrelated command cannot satisfy the criterion.
+- Preserve existing Lite-write eligibility changes. Full snapshots still assume a stable workspace; use isolated worktrees for parallel Full writers, even with disjoint owned files.
 
 ## Deploy and rollback
 

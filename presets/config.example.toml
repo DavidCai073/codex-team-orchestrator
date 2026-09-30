@@ -2,7 +2,7 @@
 # This preset is intentionally limited to portable, team-related settings.
 approval_policy = "on-request"
 sandbox_mode = "workspace-write"
-# Model choices are separate; --model-preset astra opts into models.astra.toml.
+# Model choices are separate; --model-preset astra or sol opts into models.*.toml.
 approvals_reviewer = "user"
 
 [agents]

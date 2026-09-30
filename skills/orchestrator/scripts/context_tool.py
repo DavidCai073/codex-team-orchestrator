@@ -27,15 +27,18 @@ def require(errors: list[str]) -> None:
         raise ContractError("; ".join(errors))
 
 
-def outside_workspace(path: Path, root: Path) -> Path:
+def outside_workspace(path: Path, root: Path, exclusions: list[str] | None = None) -> Path:
+    """Permit sidecars, or the explicitly excluded reserved in-workspace directory."""
     resolved = path.resolve()
     if resolved.is_relative_to(root.resolve()):
-        raise ValueError("Store contracts and logs outside the monitored workspace.")
+        relative = resolved.relative_to(root.resolve()).as_posix()
+        if ".orchestrator" not in (exclusions or []) or not relative.startswith(".orchestrator/"):
+            raise ValueError("Store artifacts outside the workspace or under explicitly excluded .orchestrator/.")
     return resolved
 
 
-def write_new(path: Path, payload: dict, root: Path) -> None:
-    path = outside_workspace(path, root)
+def write_new(path: Path, payload: dict, root: Path, exclusions: list[str] | None = None) -> None:
+    path = outside_workspace(path, root, exclusions)
     path.parent.mkdir(parents=True, exist_ok=True)
     # Never silently replace a capsule, receipt, or root acceptance decision.
     with path.open("x", encoding="utf-8") as stream:
@@ -55,6 +58,9 @@ def make_capsule(spec: dict, root: Path, exclusions: list[str] | None = None) ->
     capsule.update(schema_version=SCHEMA_VERSION, node_id=spec.get("node_id", uuid.uuid4().hex),
                    capsule_version=spec.get("capsule_version", 1), workspace_base=snapshot(root, exclusions))
     require(validate_capsule(capsule))
+    require([f"acceptance criterion {item['id']} must pin a non-empty command argv"
+             for item in capsule["acceptance_criteria"]
+             if item["verification"] == "command" and not item.get("command")])
     return capsule
 
 
@@ -80,7 +86,7 @@ def run_check(capsule: dict, root: Path, records: Path, command: list[str], cwd:
     folder = (root / cwd).resolve()
     if not folder.is_relative_to(root.resolve()):
         raise ValueError("Check cwd escapes workspace")
-    records = outside_workspace(records, root)
+    records = outside_workspace(records, root, capsule["workspace_base"]["excluded_paths"])
     before = snapshot(root, capsule["workspace_base"]["excluded_paths"])
     changes = changed_paths(capsule["workspace_base"]["files"], before["files"])
     if (capsule["permission"] != "scoped-write" and changes) or any(not under(path, capsule["owned_paths"]) for path in changes):
@@ -102,7 +108,7 @@ def run_check(capsule: dict, root: Path, records: Path, command: list[str], cwd:
              "record": identifier + ".json"}
     receipt = {"schema_version": SCHEMA_VERSION, "capsule_digest": capsule_digest(capsule), "check": check,
                "workspace_after_digest": digest(after["files"]), "runtime": runtime_signature()}
-    write_new(records / check["record"], receipt, root)
+    write_new(records / check["record"], receipt, root, capsule["workspace_base"]["excluded_paths"])
     return check
 
 
@@ -193,15 +199,18 @@ def main() -> int:
             print(json.dumps({"schema_version": SCHEMA_VERSION, "capsule": CAPSULE_FIELDS, "delta": DELTA_FIELDS}, indent=2))
             return 0
         root = args.workspace_root.resolve(strict=True)
-        if hasattr(args, "out"):
-            outside_workspace(args.out, root)
-        if hasattr(args, "records_dir"):
-            outside_workspace(args.records_dir, root)
         if args.action == "prepare":
+            exclusions = args.exclude
+            outside_workspace(args.out, root, exclusions)
             value = make_capsule(read_payload(args.spec), root, args.exclude)
         else:
             cap = read_payload(args.capsule)
             require(validate_capsule(cap))
+            exclusions = cap["workspace_base"]["excluded_paths"]
+            if hasattr(args, "out"):
+                outside_workspace(args.out, root, exclusions)
+            if hasattr(args, "records_dir"):
+                outside_workspace(args.records_dir, root, exclusions)
             if args.action == "ready":
                 issues = check_input_freshness(cap, snapshot(root, cap["workspace_base"]["excluded_paths"]))
                 print(json.dumps({"received_capsule_version": cap["capsule_version"],
@@ -216,7 +225,7 @@ def main() -> int:
                 value = make_delta(read_payload(args.report), cap, root, args.records_dir)
             else:
                 value = accept(read_payload(args.review), cap, read_payload(args.delta), root, args.records_dir)
-        write_new(args.out, value, root)
+        write_new(args.out, value, root, exclusions)
         print(f"Created {args.action} record: {args.out}")
         return 0
     except ContractError as error:

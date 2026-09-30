@@ -26,7 +26,8 @@ def capsule(permission: str = "scoped-write") -> dict:
     return {
         "schema_version": 2, "stage_id": "stage-contract", "capsule_version": 10,
         "node_id": "node-write-contract", "objective": "Harden the contract validator.",
-        "acceptance_criteria": [{"id": "A-1", "description": "Regression passes.", "verification": "command", "expected_exit_code": 0}],
+        "acceptance_criteria": [{"id": "A-1", "description": "Regression passes.", "verification": "command", "expected_exit_code": 0,
+                                 "command": ["python", "-B", "-m", "unittest"], "cwd": "."}],
         "confirmed_decisions": [], "non_goals": [], "dependencies_and_interfaces": [],
         "owned_paths": ["src", "tests/test_contract.py"], "input_paths": [],
         "permission": permission, "safety_boundaries": ["No files outside ownership"],
@@ -186,6 +187,19 @@ class ContextContractTests(unittest.TestCase):
         cap["acceptance_criteria"][0]["verification"] = "manual"
         errors = validator.validate_acceptance(review(), cap, delta_for(cap, checks=[]))
         self.assertTrue(any("unreported check" in error for error in errors))
+
+    def test_command_and_cwd_must_match_plan(self):
+        cap = capsule()
+        for changes in ({"command": ["python", "--version"]}, {"cwd": "src"}):
+            delta = delta_for(cap)
+            delta["checks"][0].update(changes)
+            self.assertTrue(any("planned command" in error for error in validator.validate_acceptance(review(), cap, delta)))
+
+    def test_legacy_unpinned_command_is_readable_but_not_accepted(self):
+        cap = capsule()
+        del cap["acceptance_criteria"][0]["command"]
+        self.assertEqual(validator.validate_capsule(cap), [])
+        self.assertTrue(any("must pin command" in error for error in validator.validate_acceptance(review(), cap, delta_for(cap))))
 
 
 if __name__ == "__main__":

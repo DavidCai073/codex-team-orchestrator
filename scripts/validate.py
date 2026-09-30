@@ -13,10 +13,11 @@ REQUIRED_FILES = [
     "skills/orchestrator/references/role-contracts.md", "skills/orchestrator/references/sol-multi-agent.md",
     "skills/orchestrator/scripts/validate_context_contract.py", "skills/orchestrator/scripts/workspace_state.py",
     "skills/orchestrator/scripts/context_tool.py", "agents/luna_worker.toml", "agents/terra_scout.toml",
-    "presets/config.example.toml", "presets/models.astra.toml", "presets/AGENTS.example.md",
+    "presets/config.example.toml", "presets/models.astra.toml", "presets/models.sol.toml", "presets/AGENTS.example.md",
     "scripts/install.py", "scripts/uninstall.py", "scripts/kitlib.py", "scripts/config_merge.py",
     "scripts/doctor.py", "README.md", "AGENTS.md", "LICENSE",
     "docs/behavior-evaluation.md", "docs/full-handoff-example.md",
+    "docs/devday-2026-review.md", "skills/orchestrator/references/runtime-compatibility.md",
 ]
 
 
@@ -50,10 +51,12 @@ def validate_structure() -> None:
     check(type(config["agents"]["max_concurrent_threads_per_session"]) is int
           and config["agents"]["max_concurrent_threads_per_session"] > 0, "Invalid concurrency preset")
     tomllib.loads((ROOT / "presets/models.astra.toml").read_text(encoding="utf-8"))
+    tomllib.loads((ROOT / "presets/models.sol.toml").read_text(encoding="utf-8"))
     for role, sandbox in (("terra_scout", "read-only"), ("luna_worker", "workspace-write")):
         profile = tomllib.loads((ROOT / "agents" / f"{role}.toml").read_text(encoding="utf-8"))
         check(profile.get("name") == role and profile.get("sandbox_mode") == sandbox, f"Invalid role: {role}")
-        check(isinstance(profile.get("model"), str) and bool(profile["model"]), f"Missing model: {role}")
+        check("model" not in profile and "model_reasoning_effort" not in profile,
+              f"Bundled role must inherit model settings instead of overriding the selected preset: {role}")
         check(isinstance(profile.get("developer_instructions"), str), f"Missing instructions: {role}")
         check("validate_context_contract.py" in profile["developer_instructions"],
               f"{role} must reference the authoritative schema instead of duplicating it")
@@ -77,7 +80,8 @@ def validate_content() -> None:
         "private key": re.compile(r"BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY"),
     }
     failures = []
-    for file in sorted(item for item in ROOT.rglob("*") if item.is_file() and ".git" not in item.parts):
+    ignored = {".git", ".orchestrator", ".codex-team-orchestrator"}
+    for file in sorted(item for item in ROOT.rglob("*") if item.is_file() and not ignored.intersection(item.relative_to(ROOT).parts)):
         if file.suffix == ".pyc" or "__pycache__" in file.parts:
             failures.append(f"Compiled cache: {file.relative_to(ROOT)}")
         try:

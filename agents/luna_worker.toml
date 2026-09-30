@@ -1,7 +1,6 @@
 name = "luna_worker"
 description = "Clear bounded implementation, explicit regressions, and mechanical migrations with stable interfaces."
-model = "gpt-5.6-luna"
-model_reasoning_effort = "max"
+# Model and effort inherit configured subagent defaults; see presets/models.*.toml.
 sandbox_mode = "workspace-write"
 
 developer_instructions = """

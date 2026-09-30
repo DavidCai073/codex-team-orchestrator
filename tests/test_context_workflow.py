@@ -26,17 +26,19 @@ class ContextWorkflowTests(unittest.TestCase):
         (self.root / "src").mkdir(parents=True)
         (self.root / "src" / "value.py").write_text("value = 1\n", encoding="utf-8")
         (self.root / "interface.txt").write_text("stable\n", encoding="utf-8")
+        self.check_command = [sys.executable, "-B", "-c", "from src.value import value; assert value == 2; print('verified')"]
         self.spec = {"stage_id": "stage-test", "objective": "Change value and verify it.",
                      "permission": "scoped-write", "owned_paths": ["src/value.py"],
                      "input_paths": ["interface.txt"], "safety_boundaries": ["Only local owned files"],
                      "acceptance_criteria": [{"id": "A-1", "description": "Value is two.",
-                                              "verification": "command", "expected_exit_code": 0}]}
+                                              "verification": "command", "expected_exit_code": 0,
+                                              "command": self.check_command, "cwd": "."}]}
         self.cap = workflow.make_capsule(self.spec, self.root)
 
     def change_and_check(self):
         (self.root / "src" / "value.py").write_text("value = 2\n", encoding="utf-8")
         return workflow.run_check(self.cap, self.root, self.records,
-            [sys.executable, "-B", "-c", "from src.value import value; assert value == 2; print('verified')"])
+            self.check_command)
 
     def report(self, check):
         return {"execution_status": "completed", "conclusion": "Value changed and checked.",
@@ -182,6 +184,34 @@ class ContextWorkflowTests(unittest.TestCase):
         cap = workflow.make_capsule(spec, self.root)
         delta = workflow.make_delta(report, cap, self.root, self.records)
         self.assertEqual(workflow.accept(review, cap, delta, self.root, self.records)["acceptance_status"], "accepted")
+
+    def test_reserved_in_workspace_artifacts_complete_workflow(self):
+        self.cap = workflow.make_capsule(self.spec, self.root, [".orchestrator"])
+        self.records = self.root / ".orchestrator" / "records"
+        workflow.write_new(self.root / ".orchestrator" / "capsule.json", self.cap, self.root, [".orchestrator"])
+        check = self.change_and_check()
+        delta = workflow.make_delta(self.report(check), self.cap, self.root, self.records)
+        accepted = workflow.accept(self.review(), self.cap, delta, self.root, self.records)
+        self.assertEqual(accepted["acceptance_status"], "accepted")
+        self.assertFalse(any(path.startswith(".orchestrator/") for path in delta["workspace_after"]["files"]))
+
+    def test_artifact_exception_requires_exact_reserved_directory(self):
+        for path, exclusions in ((".orchestrator/cap.json", []), ("src/cap.json", ["src"]),
+                                 (".orchestrator-other/cap.json", [".orchestrator"])):
+            with self.subTest(path=path), self.assertRaises(ValueError):
+                workflow.write_new(self.root / path, {}, self.root, exclusions)
+
+    def test_successful_unplanned_command_cannot_satisfy_acceptance(self):
+        (self.root / "src" / "value.py").write_text("value = 2\n", encoding="utf-8")
+        check = workflow.run_check(self.cap, self.root, self.records, [sys.executable, "-B", "-c", "print('unrelated')"])
+        delta = workflow.make_delta(self.report(check), self.cap, self.root, self.records)
+        with self.assertRaisesRegex(ValueError, "planned command"):
+            workflow.accept(self.review(), self.cap, delta, self.root, self.records)
+
+    def test_new_command_criterion_requires_planned_argv(self):
+        del self.spec["acceptance_criteria"][0]["command"]
+        with self.assertRaisesRegex(ValueError, "must pin"):
+            workflow.make_capsule(self.spec, self.root)
 
 
 if __name__ == "__main__":

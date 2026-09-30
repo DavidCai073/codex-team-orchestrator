@@ -11,7 +11,7 @@ from kitlib import atomic_write, is_within, load_json, sha256_bytes, sha256_file
 from config_merge import ConfigMergeError, merge_values
 
 
-VERSION = "0.2.0"
+VERSION = "0.3.0"
 AGENTS_START = "<!-- codex-team-orchestrator:start -->"
 AGENTS_END = "<!-- codex-team-orchestrator:end -->"
 
@@ -21,7 +21,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--codex-home", type=Path, help="Codex home directory (default: CODEX_HOME or ~/.codex).")
     parser.add_argument("--user-home", type=Path, help="User home used for ~/.agents (default: current home).")
     parser.add_argument("--apply-preset", action="store_true", help="Apply routing, safety and concurrency settings; preserve existing model choices.")
-    parser.add_argument("--model-preset", choices=("astra",), help="Explicitly apply Astra high and default Terra medium; requires --apply-preset.")
+    parser.add_argument("--model-preset", choices=("astra", "sol"), help="Explicitly select Astra or GPT-6.1 Sol, with Luna defaults; clear managed role model overrides. Requires --apply-preset.")
     parser.add_argument("--skill-location", choices=("codex", "agents"), default="codex", help="Select the client-supported Skill discovery root; default: codex.")
     parser.add_argument("--dry-run", action="store_true", help="Show planned changes without writing files.")
     parser.add_argument("--force", action="store_true", help="Replace conflicting managed Skill or agent files after backing them up.")
@@ -41,7 +41,9 @@ def resolve_homes(args: argparse.Namespace) -> tuple[Path, Path]:
 def merge_config(existing: str, preset_path: Path, model_preset: str | None = None) -> str:
     selected = tomllib.loads(preset_path.read_text(encoding="utf-8"))
     if model_preset:
-        models = tomllib.loads((preset_path.parent / "models.astra.toml").read_text(encoding="utf-8"))
+        if model_preset not in ("astra", "sol"):
+            raise ConfigMergeError("Unsupported model preset")
+        models = tomllib.loads((preset_path.parent / f"models.{model_preset}.toml").read_text(encoding="utf-8"))
         selected.update({key: value for key, value in models.items() if key != "agents"})
         selected.setdefault("agents", {}).update(models.get("agents", {}))
     return merge_values(existing, selected)
@@ -58,7 +60,7 @@ def merge_agents(existing: str, preset_path: Path) -> str:
     return f"{base}\n\n{block}\n" if base else f"{block}\n"
 
 
-def source_operations(repo_root: Path, codex_home: Path, user_home: Path, skill_location: str = "codex") -> list[dict[str, object]]:
+def source_operations(repo_root: Path, codex_home: Path, user_home: Path, skill_location: str = "codex", model_preset: str | None = None) -> list[dict[str, object]]:
     operations: list[dict[str, object]] = []
     skill_source = repo_root / "skills" / "orchestrator"
     skill_target = (codex_home / "skills" if skill_location == "codex" else user_home / ".agents" / "skills") / "orchestrator"
@@ -66,7 +68,16 @@ def source_operations(repo_root: Path, codex_home: Path, user_home: Path, skill_
                          and "__pycache__" not in path.parts and path.suffix != ".pyc"):
         operations.append({"source": source, "target": skill_target / source.relative_to(skill_source), "kind": "skill"})
     for name in ("luna_worker.toml", "terra_scout.toml"):
-        operations.append({"source": repo_root / "agents" / name, "target": codex_home / "agents" / name, "kind": "agent"})
+        source, target = repo_root / "agents" / name, codex_home / "agents" / name
+        operation: dict[str, object] = {"source": source, "target": target, "kind": "agent"}
+        if target.is_file() and model_preset is None:
+            existing = tomllib.loads(target.read_text(encoding="utf-8"))
+            preserved = {key: existing[key] for key in ("model", "model_reasoning_effort") if key in existing}
+            if any(not isinstance(value, str) or not value.strip() for value in preserved.values()):
+                raise ConfigMergeError("Existing role model settings must be non-empty strings")
+            if preserved:
+                operation["data"] = merge_values(source.read_text(encoding="utf-8"), preserved).encode("utf-8")
+        operations.append(operation)
     return operations
 
 
@@ -114,7 +125,7 @@ def main() -> int:
     repo_root = Path(__file__).resolve().parent.parent
     state_dir, manifest_path = state_paths(codex_home)
 
-    operations = source_operations(repo_root, codex_home, user_home, args.skill_location)
+    operations = source_operations(repo_root, codex_home, user_home, args.skill_location, args.model_preset)
     for operation in operations:
         source = Path(operation["source"])
         if not source.is_file():
@@ -183,7 +194,7 @@ def main() -> int:
     print(f"User home:  {user_home}")
     if args.apply_preset:
         print("Preset: routing, workspace-write/on-request safety, concurrency")
-        print("Models: Astra high / default Terra medium" if args.model_preset else "Models: existing choices preserved")
+        print(f"Models: explicit {args.model_preset} preset; managed roles inherit its defaults" if args.model_preset else "Models: existing root/default/role choices preserved")
     for operation in operations:
         target = Path(operation["target"])
         action = "update" if target.exists() else "create"

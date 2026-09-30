@@ -1,0 +1,7 @@
+# Optional DevDay 2026 comparison baseline. Availability remains runtime-dependent.
+model = "gpt-6.1-sol"
+model_reasoning_effort = "max"
+
+[agents]
+default_subagent_model = "gpt-6-luna"
+default_subagent_reasoning_effort = "max"

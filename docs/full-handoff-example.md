@@ -57,7 +57,9 @@ python -B skills/orchestrator/scripts/context_tool.py accept --workspace-root . 
 
 The generated acceptance binds the exact capsule, Delta and observed file state. Reusing these commands with an existing output file stops instead of overwriting history. A new or changed assignment needs a new output path and the appropriate node version.
 
-For delegated implementation, use scoped-write, explicit owned_paths and command criteria with expected_exit_code. run-check accepts an argv after -- and writes a receipt with the actual process outcome. Put the receipt filename in report.check_records and reference its check ID from command evidence. Do not execute checks through read-only roles.
+For delegated implementation, use scoped-write, explicit owned_paths and command criteria with command argv, cwd and expected_exit_code. run-check accepts an argv after -- and writes a receipt with the actual process outcome. It must match the predeclared argv/cwd to satisfy acceptance. Put the receipt filename in report.check_records and reference its check ID from command evidence. Do not execute checks through read-only roles.
+
+If only the project directory is writable, create .orchestrator/ there and keep the same JSON inputs inside it. In the prepare command add --exclude .orchestrator, and replace ../handoff/ paths with .orchestrator/ in all commands. That explicit exclusion is recorded in the capsule, and the helper refuses input/owned paths overlapping it. The kit ignores .orchestrator/ in Git; add the same exclusion to a consuming project's ignore rules before generating private records there. Do not hide source code or broader directories to avoid a mismatch.
 
 To see the complete implementation/check/acceptance path in an isolated temporary project, run:
 

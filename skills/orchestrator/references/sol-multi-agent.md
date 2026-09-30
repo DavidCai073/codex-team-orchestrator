@@ -6,7 +6,7 @@ This legacy filename contains model-independent guidance. The root is a hands-on
 
 A delegated node needs an independent deliverable, bounded ownership, dependencies and evidence. Parallel discovery or independent review can be useful even when only one implementation stream is safe. Complete upstream decisions before dependent implementation; integrate before final acceptance. Do not create roles solely to fill a roster.
 
-Keep one writer per workspace including the root. A read-only scout may run while the root writes elsewhere, but its inputs must remain stable or its findings must be rechecked. Isolate simultaneous writers in worktrees. Snapshot checks cannot attribute a change to a particular process; stop automatic acceptance of unexplained changes without discarding them.
+Keep one writer per owned file set including the root. A scout may run while the root writes elsewhere, but its inputs must remain stable or its findings must be rechecked. The Full helper still monitors a complete workspace, so simultaneous Full writers need isolated worktrees. This stricter implementation limit does not forbid eligible independent Lite work. Snapshot checks cannot attribute a change to a process; reconcile unexplained changes without discarding them.
 
 Use the selection rules in SKILL.md and the single Lite / Full definition in role-contracts.md. Simple root work needs neither. Never turn every focused lookup into Full by applying a broad statement from a reference file.
 

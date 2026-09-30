@@ -4,18 +4,20 @@ There are two delegated formats. Direct root work uses neither. The root supplie
 
 ## Lite
 
-Use an inline assignment for ordinary low-risk read-only discovery:
+Use an inline assignment for ordinary low-risk read-only discovery. A bounded local write can use Lite only if the actual role allows it; a role requiring Full (including the current luna_worker and any Full-configured sol_worker) still uses Full. Model tier does not relax the contract. For Lite writes, name exact owned files, expected current state, the single requested change, concrete acceptance/readback and stopping conditions. Do not delegate external actions or cross-task handoffs through this exception.
+
+For read-only discovery:
 
 - Role and one concrete objective.
 - Scope, non-goals, and permission=read-only.
 - Evidence required and a compact deliverable.
 - Stop conditions: missing material input, changed authority, contradictory evidence, or scope expansion.
 
-Return conclusion, evidence, risks/blockers and next step. No JSON, digest, file inventory or command receipts are required. Read-only inspection commands are allowed; execution checks and retained writes require Full and the appropriate runtime role.
+Return conclusion, evidence, risks/blockers and next step. No JSON, digest, file inventory or command receipts are required. Read-only inspection commands are allowed. An eligible Lite write returns actual changed paths and check results for root readback; it stops after the bounded change and necessary check. Other execution checks and retained writes require Full and the appropriate runtime role.
 
 ## Full: schema 2
 
-Use Full for delegated writes, execution checks, high-risk analysis, cross-task persistence and dependent integration. Schema 1 capsules must be regenerated; installation manifests retain their existing rollback compatibility.
+Use Full for delegated writes/checks outside the eligible Lite case, high-risk analysis, cross-task persistence and dependent integration. Schema 1 capsules must be regenerated; installation manifests retain their existing rollback compatibility.
 
 The authoritative machine fields, validation and enums are in ../scripts/validate_context_contract.py. Inspect them without loading a workspace:
 
@@ -23,9 +25,9 @@ The authoritative machine fields, validation and enums are in ../scripts/validat
 
 The root writes a compact spec with stage_id, objective, acceptance_criteria, permission and non-empty safety_boundaries. Include owned_paths for writes and input_paths for read dependencies, using normalized relative paths. Optional decisions, non-goals, interfaces, failures, evidence and open questions default to empty lists. Decisions contain id, statement and a non-empty evidence list. Optional node_id and capsule_version identify this node; new nodes get a generated ID and version 1.
 
-Each acceptance criterion contains id, description and verification ("command" or "manual"). Command criteria also require an integer expected_exit_code, normally 0. A diagnostic task can explicitly expect 1. Set expectations before execution, not after seeing results.
+Each acceptance criterion contains id, description and verification ("command" or "manual"). New command criteria require command (a non-empty argv array), cwd (workspace-relative, defaults to ".") and integer expected_exit_code, normally 0. A diagnostic task can explicitly expect 1. Pin the actual executable spelling and arguments before execution. Schema 2 reports remain readable, but legacy command criteria without argv cannot be marked met; revise the node contract and produce matching evidence.
 
-The helper supplies schema version, IDs/defaults, canonical digest, Git information and a file inventory. Store specs, capsules, reports, receipts and review files in a sidecar directory outside the monitored workspace. They can contain private paths/logs and must not be packaged.
+The helper supplies schema version, IDs/defaults, canonical digest, Git information and a file inventory. Store artifacts in an allowed sidecar directory, or use --exclude .orchestrator and keep them beneath the workspace's .orchestrator/ directory. The reserved directory must be explicitly excluded; arbitrary excluded code/vendor directories cannot be used for this exception. Respect runtime write roots. These artifacts may contain private paths/logs and must not be packaged or committed.
 
 Use explicit exclusions only for generated/vendor data that is outside owned_paths and input_paths. Inventory covers all other files, including untracked and ignored files, and automatically excludes .git metadata. Large repositories should use an isolated workspace or deliberate generated/vendor exclusions. Every excluded path is an acknowledged gap, not an ownership allowance.
 
@@ -39,7 +41,7 @@ Use explicit exclusions only for generated/vendor data that is outside owned_pat
 
 All paths above are arguments, not literal filenames to copy. Use the README walkthrough for executable examples. An output path must be new; helpers do not overwrite existing contracts. Increment the affected node version and use a new file when scope, authority or acceptance changes.
 
-A read-only Terra role must not write sidecar files. It returns its compact Full report inline; the root materializes the Delta and review through the same helper. A task needing execution checks must use a runtime role with appropriate permission, not widen Terra implicitly.
+A read-only scout or reviewer must not write sidecar files. It returns its compact Full report inline; the root materializes the Delta and review through the same helper. A task needing execution checks must use a runtime role with appropriate permission, not widen a read-only role implicitly.
 
 ## Worker report and evidence
 
@@ -55,7 +57,7 @@ Historical failures can remain in a report. They cannot satisfy final-code accep
 
 execution_status=completed means the assigned execution is finished; it does not mean the feature passed.
 
-The root review has acceptance_status ("accepted", "rejected" or "pending") and criteria. Each row has criterion_id, decision ("met", "unmet" or "unverified"), reason and evidence_ids. Cover each criterion exactly once. Accepted requires completed execution and all criteria met. Command criteria need a referenced real receipt with the predetermined exit code and matching final code state. Manual criteria require root evidence review; a boolean cannot prove semantics.
+The root review has acceptance_status ("accepted", "rejected" or "pending") and criteria. Each row has criterion_id, decision ("met", "unmet" or "unverified"), reason and evidence_ids. Cover each criterion exactly once. Accepted requires completed execution and all criteria met. Command criteria need a real receipt matching the planned argv, cwd, exit code and final code state. Another command exiting successfully cannot substitute. Manual criteria require root evidence review; a boolean cannot prove semantics.
 
 The generated acceptance record binds the node capsule, Delta and reviewed file state. Current file state is compared with the worker result, and all baseline changes must match the reported list and ownership. Node version is compared only with that node's contract, never a global revision. Unexplained unrelated edits stop automatic acceptance and require root reconciliation; use isolated worktrees for independent writers.
 

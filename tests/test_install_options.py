@@ -14,7 +14,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
-from doctor import diagnose
+from doctor import diagnose, configured_role_settings
 
 
 class InstallOptionsTests(unittest.TestCase):
@@ -153,6 +153,51 @@ class InstallOptionsTests(unittest.TestCase):
         self.assertFalse((self.codex / "agents" / "luna_worker.toml").exists())
         self.assertFalse((self.codex / "skills" / "orchestrator" / "SKILL.md").exists())
         self.assertFalse((self.codex / ".codex-team-orchestrator" / "install-state.json").exists())
+
+    def test_sol_preset_applies_to_root_and_both_inheriting_roles(self):
+        result = self.run_script("install.py", "--apply-preset", "--model-preset", "sol")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        config = tomllib.loads((self.codex / "config.toml").read_text(encoding="utf-8"))
+        self.assertEqual(config["model"], "gpt-6.1-sol")
+        self.assertEqual(config["model_reasoning_effort"], "max")
+        for role in diagnose(self.codex, self.user)["roles"]:
+            settings = role["configured_settings"]
+            self.assertEqual(settings["model"], "gpt-6-luna")
+            self.assertEqual(settings["model_source"], "agents_default")
+            self.assertEqual(settings["reasoning_effort"], "max")
+        self.assertEqual(self.run_script("install.py", "--apply-preset", "--model-preset", "sol").returncode, 0)
+
+    def test_ordinary_replacement_preserves_role_overrides(self):
+        role_path = self.codex / "agents" / "terra_scout.toml"
+        role_path.parent.mkdir()
+        original = 'name="terra_scout"\nmodel="custom-scout"\nmodel_reasoning_effort="high"\n'
+        role_path.write_text(original, encoding="utf-8")
+        self.assertEqual(self.run_script("install.py", "--force", "--apply-preset").returncode, 0)
+        role = tomllib.loads(role_path.read_text(encoding="utf-8"))
+        self.assertEqual(role["model"], "custom-scout")
+        self.assertEqual(role["model_reasoning_effort"], "high")
+        self.assertEqual(self.run_script("install.py", "--force", "--apply-preset").returncode, 0)
+        self.assertEqual(self.run_script("uninstall.py").returncode, 0)
+        self.assertEqual(role_path.read_text(encoding="utf-8"), original)
+
+    def test_explicit_preset_removes_old_managed_role_override(self):
+        role_path = self.codex / "agents" / "terra_scout.toml"
+        role_path.parent.mkdir()
+        role_path.write_text('model="old-model"\nmodel_reasoning_effort="max"\n', encoding="utf-8")
+        result = self.run_script("install.py", "--force", "--apply-preset", "--model-preset", "sol")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        role = tomllib.loads(role_path.read_text(encoding="utf-8"))
+        self.assertNotIn("model", role)
+        self.assertNotIn("model_reasoning_effort", role)
+
+    def test_doctor_explains_role_override_and_unresolved_effort(self):
+        config = {"model": "root", "model_reasoning_effort": "ultra", "agents": {"default_subagent_model": "child"}}
+        settings = configured_role_settings(config, {})
+        self.assertEqual(settings["model"], "child")
+        self.assertIsNone(settings["reasoning_effort"])
+        settings = configured_role_settings(config, {"model": "override", "model_reasoning_effort": "high"})
+        self.assertEqual(settings["model_source"], "role_file")
+        self.assertEqual(settings["reasoning_effort"], "high")
 
 
 if __name__ == "__main__":
